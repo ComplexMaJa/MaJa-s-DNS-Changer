@@ -1,0 +1,60 @@
+{
+    "name": "majas-dns-changer",
+    "version": "1.0.0",
+    "description": "MaJa's DNS Changer - Smart DNS Optimization Tool",
+    "main": "dist-electron/main.js",
+    "author": "MaJa",
+    "license": "MIT",
+    "private": true,
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc -b && vite build && tsc -p electron/tsconfig.json",
+        "preview": "vite preview",
+        "electron:compile": "tsc -p electron/tsconfig.json",
+        "electron:dev": "pnpm electron:compile && concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+        "electron:build": "pnpm build && electron-builder --win",
+        "lint": "eslint ."
+    },
+    "dependencies": {
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0"
+    },
+    "devDependencies": {
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "@vitejs/plugin-react": "^4.3.4",
+        "concurrently": "^9.1.0",
+        "electron": "^34.0.0",
+        "electron-builder": "^25.1.8",
+        "typescript": "~5.7.0",
+        "vite": "^6.1.0",
+        "wait-on": "^8.0.0",
+        "@electron-toolkit/tsconfig": "^1.0.1"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "electron",
+            "esbuild"
+        ]
+    },
+    "build": {
+        "appId": "com.maja.dnschanger",
+        "productName": "MaJa's DNS Changer",
+        "files": [
+            "dist/**/*",
+            "dist-electron/**/*"
+        ],
+        "directories": {
+            "output": "release"
+        },
+        "win": {
+            "target": "nsis",
+            "icon": "public/icon.png",
+            "requestedExecutionLevel": "asInvoker"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true
+        }
+    }
+}

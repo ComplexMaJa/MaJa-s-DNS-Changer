@@ -1,8 +1,11 @@
 // src/App.tsx
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { TitleBar } from './components/TitleBar';
 import { DashboardCards } from './components/DashboardCards';
-import { ProgressBar } from './components/ProgressBar';
+import { ScanVisualizer } from './components/ScanVisualizer';
+import { LatencyBarChart } from './components/LatencyBarChart';
+import { LatencyHistoryGraph } from './components/LatencyHistoryGraph';
 import { ServerList } from './components/ServerList';
 import { ActionButtons } from './components/ActionButtons';
 import { SettingsPage } from './components/SettingsPage';
@@ -44,7 +47,6 @@ const App: React.FC = () => {
     const handleApply = useCallback(async () => {
         if (!bestDNS || !window.electronAPI) return;
 
-        // If the user has a preferred provider override, find it
         let targetDNS = bestDNS;
         if (settings.preferredProvider !== 'auto') {
             const preferred = results.find(
@@ -66,7 +68,7 @@ const App: React.FC = () => {
             } else {
                 showToast(result.message, 'error');
             }
-        } catch (err) {
+        } catch {
             showToast('Failed to apply DNS. Please try again.', 'error');
         } finally {
             setIsApplying(false);
@@ -87,15 +89,28 @@ const App: React.FC = () => {
             } else {
                 showToast(result.message, 'error');
             }
-        } catch (err) {
+        } catch {
             showToast('Failed to restore DNS. Please try again.', 'error');
         } finally {
             setIsRestoring(false);
         }
     }, [showToast, refreshDNS]);
 
-    // Find which server is currently being tested
-    const currentlyTesting = results.find((r) => r.status === 'testing');
+    // Derived state
+    const currentlyTesting = useMemo(
+        () => results.find((r) => r.status === 'testing'),
+        [results]
+    );
+
+    const completedCount = useMemo(
+        () => results.filter((r) => r.status === 'done' || r.status === 'error').length,
+        [results]
+    );
+
+    const hasScanResults = useMemo(
+        () => results.some((r) => r.status === 'done'),
+        [results]
+    );
 
     return (
         <>
@@ -129,7 +144,8 @@ const App: React.FC = () => {
                 {/* Content */}
                 <div className="app-content">
                     {activeTab === 'dashboard' ? (
-                        <div className="fade-in">
+                        <>
+                            {/* Summary Cards */}
                             <DashboardCards
                                 currentDNS={systemDNS.dns}
                                 adapter={systemDNS.adapter}
@@ -138,26 +154,54 @@ const App: React.FC = () => {
                                 isLoading={dnsLoading}
                             />
 
-                            <ProgressBar
-                                progress={progress}
-                                isScanning={isScanning}
-                                currentTest={currentlyTesting?.provider || ''}
-                            />
+                            {/* Scan Visualizer (progress ring) */}
+                            <AnimatePresence>
+                                {(isScanning || (progress > 0 && progress < 100)) && (
+                                    <ScanVisualizer
+                                        isScanning={isScanning}
+                                        progress={progress}
+                                        currentProvider={currentlyTesting?.provider || ''}
+                                        completedCount={completedCount}
+                                        totalCount={results.length}
+                                    />
+                                )}
+                            </AnimatePresence>
 
-                            <ServerList
-                                results={results}
-                                bestProvider={bestDNS?.provider || null}
-                            />
+                            {/* Latency Bar Chart */}
+                            {hasScanResults && (
+                                <LatencyBarChart
+                                    results={results}
+                                    bestProvider={bestDNS?.provider || null}
+                                    isScanning={isScanning}
+                                />
+                            )}
 
-                            {!isScanning && progress === 0 && (
+                            {/* Charts Grid: History Graph */}
+                            {hasScanResults && !isScanning && (
+                                <LatencyHistoryGraph
+                                    results={results}
+                                    bestProvider={bestDNS?.provider || null}
+                                />
+                            )}
+
+                            {/* Server List */}
+                            {(hasScanResults || isScanning) && (
+                                <ServerList
+                                    results={results}
+                                    bestProvider={bestDNS?.provider || null}
+                                />
+                            )}
+
+                            {/* Empty State */}
+                            {!isScanning && !hasScanResults && (
                                 <div className="empty-state">
                                     <div className="empty-state-icon">🌐</div>
                                     <div className="empty-state-text">
-                                        Click "Scan & Optimize DNS" to test all DNS providers and find the fastest one for your network.
+                                        Click "Scan & Optimize DNS" to benchmark all DNS providers and find the fastest one for your network.
                                     </div>
                                 </div>
                             )}
-                        </div>
+                        </>
                     ) : (
                         <SettingsPage
                             settings={settings}

@@ -8,7 +8,6 @@
 
 <p align="center">
   <a href="#features">Features</a> •
-  <a href="#screenshots">Screenshots</a> •
   <a href="#installation">Installation</a> •
   <a href="#development">Development</a> •
   <a href="#build">Build</a> •
@@ -47,12 +46,6 @@ No more guessing which DNS is best for your connection — let the app test them
 - **Persistent Results** — Scan history saved locally for future reference
 - **Native Notifications** — Desktop notification with sound when benchmarking completes
 - **Modern UI** — Smooth animations, interactive charts, and a polished dark interface
-
----
-
-## Screenshots
-
-> _Coming soon_
 
 ---
 
@@ -143,35 +136,6 @@ The installer includes a custom sidebar image, branded icons, and a multi-step i
 
 ---
 
-## Project Structure
-
-```
-├── electron/              # Main process
-│   ├── main.ts            # Electron entry point & IPC handlers
-│   ├── dnsManager.ts      # DNS apply/restore/detect logic
-│   ├── latencyScanner.ts  # Multi-method DNS benchmarking
-│   └── preload.ts         # Context bridge for renderer
-├── src/                   # Renderer process
-│   ├── App.tsx            # Root component
-│   ├── components/        # UI components
-│   │   ├── DashboardCards.tsx
-│   │   ├── ScanVisualizer.tsx
-│   │   ├── LatencyBarChart.tsx
-│   │   ├── ServerList.tsx
-│   │   ├── SettingsPage.tsx
-│   │   └── ...
-│   └── hooks/             # Custom React hooks
-│       ├── useDNSScanner.ts
-│       ├── useSettings.ts
-│       ├── useSystemDNS.ts
-│       └── useToast.ts
-├── assets/                # Static assets
-├── build/                 # Build resources (icons, installer images)
-└── package.json
-```
-
----
-
 ## DNS Providers
 
 | Provider | Primary | Secondary |
@@ -203,5 +167,5 @@ This project is licensed under the [MIT License](LICENSE).
 ---
 
 <p align="center">
-  Made with ❤️ by <a href="https://github.com/ComplexMaJa">MaJa</a>
+  Made with ❤️ by <a href="https://github.com/ComplexMaJa">Yours Truly</a>
 </p>

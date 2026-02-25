@@ -24,7 +24,7 @@ export function useToast() {
 
         timeoutRef.current = setTimeout(() => {
             setToast((prev) => ({ ...prev, visible: false }));
-        }, 4000);
+        }, 6000);
     }, []);
 
     return { toast, showToast };

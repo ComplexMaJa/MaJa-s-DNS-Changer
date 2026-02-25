@@ -1,40 +1,52 @@
 // src/hooks/useDNSScanner.ts
 import { useState, useCallback, useEffect, useRef } from 'react';
 
-export interface ScanResult {
-    provider: string;
-    primaryIP: string;
-    secondaryIP: string;
-    latency: number;
-    status: 'waiting' | 'testing' | 'done' | 'error';
-}
-
 const DNS_PROVIDERS = [
-    { name: 'Cloudflare', primaryIP: '1.1.1.1', secondaryIP: '1.0.0.1' },
-    { name: 'Google DNS', primaryIP: '8.8.8.8', secondaryIP: '8.8.4.4' },
-    { name: 'Quad9', primaryIP: '9.9.9.9', secondaryIP: '149.112.112.112' },
-    { name: 'OpenDNS', primaryIP: '208.67.222.222', secondaryIP: '208.67.220.220' },
-    { name: 'AdGuard', primaryIP: '94.140.14.14', secondaryIP: '94.140.15.15' },
-    { name: 'NextDNS', primaryIP: '45.90.28.0', secondaryIP: '45.90.30.0' },
-    { name: 'Control D', primaryIP: '76.76.2.0', secondaryIP: '76.76.10.0' },
-    { name: 'Mullvad', primaryIP: '194.242.2.2', secondaryIP: '193.19.108.2' },
-    { name: 'CleanBrowsing', primaryIP: '185.228.168.9', secondaryIP: '185.228.169.9' },
-    { name: 'Alternate DNS', primaryIP: '76.76.19.19', secondaryIP: '76.223.122.150' },
+    { name: 'Cloudflare', primary: '1.1.1.1', secondary: '1.0.0.1' },
+    { name: 'Google DNS', primary: '8.8.8.8', secondary: '8.8.4.4' },
+    { name: 'Quad9', primary: '9.9.9.9', secondary: '149.112.112.112' },
+    { name: 'OpenDNS', primary: '208.67.222.222', secondary: '208.67.220.220' },
+    { name: 'AdGuard', primary: '94.140.14.14', secondary: '94.140.15.15' },
+    { name: 'NextDNS', primary: '45.90.28.0', secondary: '45.90.30.0' },
+    { name: 'ControlD', primary: '76.76.2.0', secondary: '76.76.10.0' },
+    { name: 'Mullvad', primary: '194.242.2.2', secondary: '193.19.108.2' },
+    { name: 'CleanBrowsing', primary: '185.228.168.9', secondary: '185.228.169.9' },
+    { name: 'Alternate DNS', primary: '76.76.19.19', secondary: '76.223.122.150' },
+    { name: 'Comodo Secure', primary: '8.26.56.26', secondary: '8.20.247.20' },
+    { name: 'DNS.SB', primary: '185.222.222.222', secondary: '45.11.45.11' },
+    { name: 'FreeDNS', primary: '37.235.1.174', secondary: '37.235.1.177' },
+    { name: 'UncensoredDNS', primary: '91.239.100.100', secondary: '89.233.43.71' },
+    { name: 'Yandex DNS', primary: '77.88.8.8', secondary: '77.88.8.1' },
+    { name: 'SafeDNS', primary: '195.46.39.39', secondary: '195.46.39.40' },
+    { name: 'OpenNIC', primary: '94.247.43.254', secondary: '23.94.60.240' },
 ];
 
+export interface ProviderUIState {
+    providerName: string;
+    primary: string;
+    secondary: string;
+    status: 'waiting' | 'testing' | 'done' | 'error';
+    currentMethod: string;
+    result: DNSBenchmarkResult | null;
+}
+
+function createInitialStates(): ProviderUIState[] {
+    return DNS_PROVIDERS.map((p) => ({
+        providerName: p.name,
+        primary: p.primary,
+        secondary: p.secondary,
+        status: 'waiting' as const,
+        currentMethod: '',
+        result: null,
+    }));
+}
+
 export function useDNSScanner() {
-    const [results, setResults] = useState<ScanResult[]>(
-        DNS_PROVIDERS.map((p) => ({
-            provider: p.name,
-            primaryIP: p.primaryIP,
-            secondaryIP: p.secondaryIP,
-            latency: 0,
-            status: 'waiting' as const,
-        }))
-    );
+    const [providers, setProviders] = useState<ProviderUIState[]>(createInitialStates());
     const [isScanning, setIsScanning] = useState(false);
     const [progress, setProgress] = useState(0);
-    const [bestDNS, setBestDNS] = useState<ScanResult | null>(null);
+    const [bestDNS, setBestDNS] = useState<DNSBenchmarkResult | null>(null);
+    const [scanResults, setScanResults] = useState<DNSBenchmarkResult[]>([]);
     const cleanupRef = useRef<(() => void) | null>(null);
 
     // Listen for real-time progress from electron
@@ -42,16 +54,17 @@ export function useDNSScanner() {
         if (!window.electronAPI) return;
 
         const cleanup = window.electronAPI.onScanProgress((data) => {
-            setResults((prev) =>
-                prev.map((r) => {
-                    if (r.provider === data.provider) {
+            setProviders((prev) =>
+                prev.map((p) => {
+                    if (p.providerName === data.providerName) {
                         return {
-                            ...r,
-                            latency: data.latency,
-                            status: data.status === 'testing' ? 'testing' : data.status === 'error' ? 'error' : 'done',
+                            ...p,
+                            status: data.status,
+                            currentMethod: data.currentMethod,
+                            result: data.result || p.result,
                         };
                     }
-                    return r;
+                    return p;
                 })
             );
             setProgress(data.progress);
@@ -63,46 +76,68 @@ export function useDNSScanner() {
         };
     }, []);
 
-    const startScan = useCallback(async (testsPerServer: number) => {
+    const startScan = useCallback(async (testsPerMethod: number): Promise<DNSBenchmarkResult | null> => {
         if (!window.electronAPI) {
             console.warn('electronAPI not available');
-            return;
+            return null;
         }
 
         setIsScanning(true);
         setProgress(0);
         setBestDNS(null);
+        setScanResults([]);
 
-        // Reset all results to waiting
-        setResults(
-            DNS_PROVIDERS.map((p) => ({
-                provider: p.name,
-                primaryIP: p.primaryIP,
-                secondaryIP: p.secondaryIP,
-                latency: 0,
-                status: 'waiting' as const,
-            }))
-        );
+        // Reset all providers to waiting
+        setProviders(createInitialStates());
+
+        let best: DNSBenchmarkResult | null = null;
 
         try {
-            await window.electronAPI.scanDNS(testsPerServer);
+            // This awaits the IPC call which only resolves after ALL providers complete
+            const results = await window.electronAPI.scanDNS(testsPerMethod);
 
-            // Find best result after scan completes
-            setResults((prev) => {
-                const completed = prev.filter((r) => r.status === 'done' && r.latency < 9999);
-                if (completed.length > 0) {
-                    const best = completed.reduce((a, b) => (a.latency < b.latency ? a : b));
-                    setBestDNS(best);
-                }
-                return prev;
-            });
+            // Verify we have results for all providers before marking complete
+            if (!results || results.length === 0) {
+                throw new Error('No results returned from scan');
+            }
+
+            setScanResults(results);
+
+            // Update provider states with final results
+            setProviders((prev) =>
+                prev.map((p) => {
+                    const result = results.find((r) => r.providerName === p.providerName);
+                    if (result) {
+                        return {
+                            ...p,
+                            status: result.averageLatency >= 9999 ? 'error' : 'done',
+                            currentMethod: '',
+                            result,
+                        };
+                    }
+                    return p;
+                })
+            );
+
+            // Find best DNS by performance score
+            const validResults = results.filter((r) => r.averageLatency < 9999);
+            if (validResults.length > 0) {
+                best = validResults.reduce((a, b) =>
+                    a.performanceScore > b.performanceScore ? a : b
+                );
+                setBestDNS(best);
+            }
+
+            // Only set progress to 100 AFTER all results are processed
+            setProgress(100);
         } catch (err) {
             console.error('Scan failed:', err);
         } finally {
             setIsScanning(false);
-            setProgress(100);
         }
+
+        return best;
     }, []);
 
-    return { results, isScanning, progress, bestDNS, startScan };
+    return { providers, isScanning, progress, bestDNS, scanResults, startScan };
 }

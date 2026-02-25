@@ -1,10 +1,10 @@
 // src/components/LatencyBarChart.tsx
 import React, { useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { ScanResult } from '../hooks/useDNSScanner';
+import type { ProviderUIState } from '../hooks/useDNSScanner';
 
 interface LatencyBarChartProps {
-    results: ScanResult[];
+    providers: ProviderUIState[];
     bestProvider: string | null;
     isScanning: boolean;
 }
@@ -18,19 +18,20 @@ function getBarColor(ms: number, maxMs: number): string {
 }
 
 export const LatencyBarChart: React.FC<LatencyBarChartProps> = memo(({
-    results,
+    providers,
     bestProvider,
     isScanning,
 }) => {
     const completedResults = useMemo(() => {
-        return results
-            .filter((r) => r.status === 'done' && r.latency < 9999)
-            .sort((a, b) => a.latency - b.latency);
-    }, [results]);
+        return providers
+            .filter((p) => p.status === 'done' && p.result && p.result.averageLatency < 9999)
+            .map((p) => p.result!)
+            .sort((a, b) => a.averageLatency - b.averageLatency);
+    }, [providers]);
 
     const maxLatency = useMemo(() => {
         if (completedResults.length === 0) return 100;
-        return Math.max(...completedResults.map((r) => r.latency), 1);
+        return Math.max(...completedResults.map((r) => r.averageLatency), 1);
     }, [completedResults]);
 
     if (completedResults.length === 0 && !isScanning) {
@@ -58,13 +59,13 @@ export const LatencyBarChart: React.FC<LatencyBarChartProps> = memo(({
             <div className="latency-bars-container">
                 <AnimatePresence mode="popLayout">
                     {completedResults.map((result, index) => {
-                        const barWidth = Math.max((result.latency / maxLatency) * 100, 4);
-                        const color = getBarColor(result.latency, maxLatency);
-                        const isBest = result.provider === bestProvider;
+                        const barWidth = Math.max((result.averageLatency / maxLatency) * 100, 4);
+                        const color = getBarColor(result.averageLatency, maxLatency);
+                        const isBest = result.providerName === bestProvider;
 
                         return (
                             <motion.div
-                                key={result.provider}
+                                key={result.providerName}
                                 className={`latency-bar-row ${isBest ? 'latency-bar-best' : ''}`}
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
@@ -80,7 +81,7 @@ export const LatencyBarChart: React.FC<LatencyBarChartProps> = memo(({
                                     {isBest && (
                                         <span className="latency-bar-star">★</span>
                                     )}
-                                    <span className="latency-bar-name">{result.provider}</span>
+                                    <span className="latency-bar-name">{result.providerName}</span>
                                 </div>
 
                                 <div className="latency-bar-track">
@@ -109,7 +110,7 @@ export const LatencyBarChart: React.FC<LatencyBarChartProps> = memo(({
                                     animate={{ opacity: 1 }}
                                     transition={{ duration: 0.3, delay: index * 0.05 + 0.3 }}
                                 >
-                                    {result.latency} ms
+                                    {result.averageLatency} ms
                                 </motion.span>
                             </motion.div>
                         );

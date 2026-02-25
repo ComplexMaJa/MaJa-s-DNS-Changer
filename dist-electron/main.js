@@ -5,16 +5,21 @@ const electron_1 = require("electron");
 const path_1 = require("path");
 const latencyScanner_1 = require("./latencyScanner");
 const dnsManager_1 = require("./dnsManager");
+let appIconPath;
 let mainWindow = null;
 function createWindow() {
+    appIconPath = electron_1.app.isPackaged
+        ? (0, path_1.join)(process.resourcesPath, 'icon.ico')
+        : (0, path_1.join)(__dirname, '../build/icon.ico');
     mainWindow = new electron_1.BrowserWindow({
-        width: 1000,
-        height: 720,
-        minWidth: 800,
-        minHeight: 600,
+        width: 1100,
+        height: 780,
+        minWidth: 900,
+        minHeight: 650,
         frame: false,
         titleBarStyle: 'hidden',
         backgroundColor: '#000000',
+        icon: appIconPath,
         show: false,
         webPreferences: {
             preload: (0, path_1.join)(__dirname, 'preload.js'),
@@ -38,14 +43,16 @@ function createWindow() {
     }
 }
 // ----- IPC Handlers -----
-electron_1.ipcMain.handle('scan-dns', async (event, testsPerServer) => {
+electron_1.ipcMain.handle('scan-dns', async (_event, testsPerMethod) => {
     const results = [];
     const progressCallback = (progress) => {
-        results.push(progress);
         mainWindow?.webContents.send('scan-progress', progress);
     };
-    await (0, latencyScanner_1.scanAllDNS)(testsPerServer, progressCallback);
-    return results;
+    const finalResults = await (0, latencyScanner_1.scanAllDNS)(testsPerMethod, progressCallback);
+    return finalResults;
+});
+electron_1.ipcMain.handle('load-scan-results', async () => {
+    return (0, latencyScanner_1.loadScanResults)();
 });
 electron_1.ipcMain.handle('apply-dns', async (_event, primaryIP, secondaryIP) => {
     return (0, dnsManager_1.applyDNS)(primaryIP, secondaryIP);
@@ -70,6 +77,25 @@ electron_1.ipcMain.handle('window-maximize', () => {
 });
 electron_1.ipcMain.handle('window-close', () => {
     mainWindow?.close();
+});
+// Notifications
+electron_1.ipcMain.handle('show-notification', (_event, title, body) => {
+    if (electron_1.Notification.isSupported()) {
+        const notification = new electron_1.Notification({
+            title,
+            body,
+            icon: appIconPath,
+            silent: false,
+        });
+        notification.on('click', () => {
+            if (mainWindow) {
+                if (mainWindow.isMinimized())
+                    mainWindow.restore();
+                mainWindow.focus();
+            }
+        });
+        notification.show();
+    }
 });
 // ----- App Lifecycle -----
 electron_1.app.whenReady().then(createWindow);

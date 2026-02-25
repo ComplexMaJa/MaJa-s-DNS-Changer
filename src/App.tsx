@@ -22,7 +22,7 @@ const App: React.FC = () => {
     const [isApplying, setIsApplying] = useState(false);
     const [isRestoring, setIsRestoring] = useState(false);
 
-    const { results, isScanning, progress, bestDNS, startScan } = useDNSScanner();
+    const { providers, isScanning, progress, bestDNS, scanResults, startScan } = useDNSScanner();
     const { systemDNS, isLoading: dnsLoading, refresh: refreshDNS } = useSystemDNS();
     const { settings, updateSettings, getTestCount } = useSettings();
     const { toast, showToast } = useToast();
@@ -38,19 +38,71 @@ const App: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Play a completion chime using Web Audio API
+    const playCompletionSound = useCallback(() => {
+        try {
+            const ctx = new AudioContext();
+            const now = ctx.currentTime;
+
+            // Create a pleasant two-tone chime
+            const playTone = (freq: number, start: number, dur: number) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0, now + start);
+                gain.gain.linearRampToValueAtTime(0.15, now + start + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now + start);
+                osc.stop(now + start + dur);
+            };
+
+            playTone(880, 0, 0.3);     // A5
+            playTone(1174.66, 0.15, 0.4); // D6
+            playTone(1318.51, 0.3, 0.5);  // E6
+
+            // Cleanup context after sound finishes
+            setTimeout(() => ctx.close(), 1500);
+        } catch {
+            // Audio not available; silently ignore
+        }
+    }, []);
+
     const handleScan = useCallback(async () => {
-        showToast('Starting DNS scan...', 'info');
-        await startScan(getTestCount());
-        showToast('Scan complete! Best DNS provider found.', 'success');
-    }, [startScan, getTestCount, showToast]);
+        showToast('Starting DNS benchmark scan...', 'info');
+        const best = await startScan(getTestCount());
+
+        if (best) {
+            // 1. Play completion chime
+            playCompletionSound();
+
+            // 2. Show in-app toast with actual result details
+            showToast(
+                `✅ Best DNS: ${best.providerName} (${best.averageLatency}ms, score: ${best.performanceScore}/100)`,
+                'success'
+            );
+
+            // 3. Fire native desktop notification
+            if (window.electronAPI?.showNotification) {
+                window.electronAPI.showNotification(
+                    '🎯 DNS Benchmark Complete',
+                    `Best: ${best.providerName} — ${best.averageLatency}ms latency, ${best.performanceScore}/100 score`
+                );
+            }
+        } else {
+            showToast('Scan finished but no valid DNS providers found.', 'error');
+        }
+    }, [startScan, getTestCount, showToast, playCompletionSound]);
 
     const handleApply = useCallback(async () => {
         if (!bestDNS || !window.electronAPI) return;
 
         let targetDNS = bestDNS;
         if (settings.preferredProvider !== 'auto') {
-            const preferred = results.find(
-                (r) => r.provider === settings.preferredProvider && r.status === 'done'
+            const preferred = scanResults.find(
+                (r) => r.providerName === settings.preferredProvider && r.averageLatency < 9999
             );
             if (preferred) {
                 targetDNS = preferred;
@@ -58,10 +110,10 @@ const App: React.FC = () => {
         }
 
         setIsApplying(true);
-        showToast(`Applying ${targetDNS.provider} DNS...`, 'info');
+        showToast(`Applying ${targetDNS.providerName} DNS...`, 'info');
 
         try {
-            const result = await window.electronAPI.applyDNS(targetDNS.primaryIP, targetDNS.secondaryIP);
+            const result = await window.electronAPI.applyDNS(targetDNS.primary, targetDNS.secondary);
             if (result.success) {
                 showToast(result.message, 'success');
                 await refreshDNS();
@@ -73,7 +125,7 @@ const App: React.FC = () => {
         } finally {
             setIsApplying(false);
         }
-    }, [bestDNS, results, settings.preferredProvider, showToast, refreshDNS]);
+    }, [bestDNS, scanResults, settings.preferredProvider, showToast, refreshDNS]);
 
     const handleRestore = useCallback(async () => {
         if (!window.electronAPI) return;
@@ -96,20 +148,41 @@ const App: React.FC = () => {
         }
     }, [showToast, refreshDNS]);
 
+    const handleApplySpecific = useCallback(async (primary: string, secondary: string, providerName: string) => {
+        if (!window.electronAPI) return;
+
+        setIsApplying(true);
+        showToast(`Applying ${providerName} DNS...`, 'info');
+
+        try {
+            const result = await window.electronAPI.applyDNS(primary, secondary);
+            if (result.success) {
+                showToast(`✅ ${providerName} DNS applied successfully!`, 'success');
+                await refreshDNS();
+            } else {
+                showToast(result.message, 'error');
+            }
+        } catch {
+            showToast('Failed to apply DNS. Run as administrator.', 'error');
+        } finally {
+            setIsApplying(false);
+        }
+    }, [showToast, refreshDNS]);
+
     // Derived state
     const currentlyTesting = useMemo(
-        () => results.find((r) => r.status === 'testing'),
-        [results]
+        () => providers.find((p) => p.status === 'testing'),
+        [providers]
     );
 
     const completedCount = useMemo(
-        () => results.filter((r) => r.status === 'done' || r.status === 'error').length,
-        [results]
+        () => providers.filter((p) => p.status === 'done' || p.status === 'error').length,
+        [providers]
     );
 
     const hasScanResults = useMemo(
-        () => results.some((r) => r.status === 'done'),
-        [results]
+        () => providers.some((p) => p.status === 'done'),
+        [providers]
     );
 
     return (
@@ -120,7 +193,7 @@ const App: React.FC = () => {
                 {/* Header */}
                 <div className="app-header">
                     <h1>MaJa's DNS Changer</h1>
-                    <p>Smart DNS Optimization Tool</p>
+                    <p>Advanced DNS Benchmarking & Optimization</p>
                 </div>
 
                 {/* Navigation */}
@@ -160,9 +233,9 @@ const App: React.FC = () => {
                                     <ScanVisualizer
                                         isScanning={isScanning}
                                         progress={progress}
-                                        currentProvider={currentlyTesting?.provider || ''}
+                                        currentProvider={currentlyTesting?.providerName || ''}
                                         completedCount={completedCount}
-                                        totalCount={results.length}
+                                        totalCount={providers.length}
                                     />
                                 )}
                             </AnimatePresence>
@@ -170,8 +243,8 @@ const App: React.FC = () => {
                             {/* Latency Bar Chart */}
                             {hasScanResults && (
                                 <LatencyBarChart
-                                    results={results}
-                                    bestProvider={bestDNS?.provider || null}
+                                    providers={providers}
+                                    bestProvider={bestDNS?.providerName || null}
                                     isScanning={isScanning}
                                 />
                             )}
@@ -179,16 +252,17 @@ const App: React.FC = () => {
                             {/* Charts Grid: History Graph */}
                             {hasScanResults && !isScanning && (
                                 <LatencyHistoryGraph
-                                    results={results}
-                                    bestProvider={bestDNS?.provider || null}
+                                    providers={providers}
+                                    bestProvider={bestDNS?.providerName || null}
                                 />
                             )}
 
                             {/* Server List */}
                             {(hasScanResults || isScanning) && (
                                 <ServerList
-                                    results={results}
-                                    bestProvider={bestDNS?.provider || null}
+                                    providers={providers}
+                                    bestProvider={bestDNS?.providerName || null}
+                                    onApplyDNS={handleApplySpecific}
                                 />
                             )}
 
@@ -197,7 +271,7 @@ const App: React.FC = () => {
                                 <div className="empty-state">
                                     <div className="empty-state-icon">🌐</div>
                                     <div className="empty-state-text">
-                                        Click "Scan & Optimize DNS" to benchmark all DNS providers and find the fastest one for your network.
+                                        Click "Scan & Benchmark DNS" to evaluate all DNS providers using ICMP, DNS query, and HTTPS methods.
                                     </div>
                                 </div>
                             )}

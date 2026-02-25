@@ -2,21 +2,20 @@
 import React, { memo } from 'react';
 import { motion } from 'framer-motion';
 import { AnimatedNumber } from './AnimatedNumber';
-import type { ScanResult } from '../hooks/useDNSScanner';
 
 interface DashboardCardsProps {
     currentDNS: string[];
     adapter: string;
     isDHCP: boolean;
-    bestDNS: ScanResult | null;
+    bestDNS: DNSBenchmarkResult | null;
     isLoading: boolean;
 }
 
-function getPerformanceLevel(ms: number): { label: string; color: string; width: number } {
-    if (ms <= 15) return { label: 'Excellent', color: '#22c55e', width: 95 };
-    if (ms <= 30) return { label: 'Great', color: '#4ade80', width: 80 };
-    if (ms <= 50) return { label: 'Good', color: '#86efac', width: 65 };
-    if (ms <= 80) return { label: 'Average', color: '#a3a3a3', width: 45 };
+function getPerformanceLevel(score: number): { label: string; color: string; width: number } {
+    if (score >= 90) return { label: 'Excellent', color: '#22c55e', width: 95 };
+    if (score >= 75) return { label: 'Great', color: '#4ade80', width: 80 };
+    if (score >= 60) return { label: 'Good', color: '#86efac', width: 65 };
+    if (score >= 40) return { label: 'Average', color: '#eab308', width: 45 };
     return { label: 'Poor', color: '#ef4444', width: 25 };
 }
 
@@ -36,10 +35,10 @@ export const DashboardCards: React.FC<DashboardCardsProps> = memo(({
     bestDNS,
     isLoading,
 }) => {
-    const perf = bestDNS ? getPerformanceLevel(bestDNS.latency) : null;
+    const perf = bestDNS ? getPerformanceLevel(bestDNS.performanceScore) : null;
 
     return (
-        <div className="dashboard-grid">
+        <div className="dashboard-grid dashboard-grid-4">
             {/* Current DNS */}
             <motion.div
                 className="stat-card"
@@ -90,10 +89,10 @@ export const DashboardCards: React.FC<DashboardCardsProps> = memo(({
                 {bestDNS ? (
                     <>
                         <div className="stat-card-value" style={{ color: '#22c55e' }}>
-                            {bestDNS.provider}
+                            {bestDNS.providerName}
                         </div>
                         <div className="stat-card-sub">
-                            {bestDNS.primaryIP} / {bestDNS.secondaryIP}
+                            {bestDNS.primary} / {bestDNS.secondary}
                         </div>
                     </>
                 ) : (
@@ -104,7 +103,7 @@ export const DashboardCards: React.FC<DashboardCardsProps> = memo(({
                 )}
             </motion.div>
 
-            {/* Latency */}
+            {/* Latency + Performance Score */}
             <motion.div
                 className="stat-card"
                 id="card-latency"
@@ -124,9 +123,8 @@ export const DashboardCards: React.FC<DashboardCardsProps> = memo(({
                 {bestDNS ? (
                     <>
                         <div className="stat-card-value-large" style={{ color: perf?.color }}>
-                            <AnimatedNumber value={bestDNS.latency} suffix=" ms" />
+                            <AnimatedNumber value={bestDNS.averageLatency} suffix=" ms" />
                         </div>
-                        {/* Performance bar */}
                         <div className="perf-bar-container">
                             <motion.div
                                 className="perf-bar-fill"
@@ -147,6 +145,47 @@ export const DashboardCards: React.FC<DashboardCardsProps> = memo(({
                             <div className="perf-bar-fill" style={{ width: 0 }} />
                         </div>
                         <div className="stat-card-sub">No data yet</div>
+                    </>
+                )}
+            </motion.div>
+
+            {/* Performance Score */}
+            <motion.div
+                className={`stat-card ${bestDNS ? 'stat-card-score' : ''}`}
+                id="card-score"
+                custom={3}
+                initial="hidden"
+                animate="visible"
+                variants={cardVariants}
+            >
+                <div className="stat-card-icon-row">
+                    <svg className="stat-card-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
+                        <path d="M9 1v2M15.4 4.6l-1.4 1.4M17 11h-2M15.4 17.4l-1.4-1.4M9 19v-2M2.6 17.4l1.4-1.4M1 11h2M2.6 4.6l1.4 1.4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                        <circle cx="9" cy="10" r="4" stroke="currentColor" strokeWidth="1.3" />
+                    </svg>
+                    <span className="stat-card-label">Performance Score</span>
+                </div>
+                {bestDNS ? (
+                    <>
+                        <div className="stat-card-value-large" style={{ color: perf?.color }}>
+                            <AnimatedNumber value={bestDNS.performanceScore} suffix="/100" />
+                        </div>
+                        <div className="stat-card-sub-row">
+                            <span className="stat-card-sub-item">
+                                Stability: <strong style={{ color: perf?.color }}>{bestDNS.stabilityScore}</strong>
+                            </span>
+                            <span className="stat-card-sub-item">
+                                Jitter: <strong style={{ color: bestDNS.jitter <= 5 ? '#22c55e' : '#eab308' }}>{bestDNS.jitter}ms</strong>
+                            </span>
+                            <span className="stat-card-sub-item">
+                                Loss: <strong style={{ color: bestDNS.packetLoss === 0 ? '#22c55e' : '#ef4444' }}>{bestDNS.packetLoss}%</strong>
+                            </span>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div className="stat-card-value-large stat-card-value-muted">—</div>
+                        <div className="stat-card-sub">Scan to calculate score</div>
                     </>
                 )}
             </motion.div>

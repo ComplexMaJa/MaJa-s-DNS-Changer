@@ -9,10 +9,10 @@ import {
     CartesianGrid,
     Tooltip,
 } from 'recharts';
-import type { ScanResult } from '../hooks/useDNSScanner';
+import type { ProviderUIState } from '../hooks/useDNSScanner';
 
 interface LatencyHistoryGraphProps {
-    results: ScanResult[];
+    providers: ProviderUIState[];
     bestProvider: string | null;
 }
 
@@ -37,19 +37,20 @@ const CustomTooltip: React.FC<{
 };
 
 export const LatencyHistoryGraph: React.FC<LatencyHistoryGraphProps> = memo(({
-    results,
+    providers,
     bestProvider,
 }) => {
     const chartData = useMemo<ChartDataPoint[]>(() => {
-        return results
-            .filter((r) => r.status === 'done' && r.latency < 9999)
-            .sort((a, b) => a.latency - b.latency)
+        return providers
+            .filter((p) => p.status === 'done' && p.result && p.result.averageLatency < 9999)
+            .map((p) => p.result!)
+            .sort((a, b) => a.averageLatency - b.averageLatency)
             .map((r) => ({
-                name: r.provider.replace(' DNS', '').replace('Alternate ', 'Alt. '),
-                latency: r.latency,
-                fill: r.provider === bestProvider ? '#22c55e' : '#3b3b3b',
+                name: r.providerName.replace(' DNS', '').replace('Alternate ', 'Alt. ').replace(' Secure', ''),
+                latency: r.averageLatency,
+                fill: r.providerName === bestProvider ? '#22c55e' : '#3b3b3b',
             }));
-    }, [results, bestProvider]);
+    }, [providers, bestProvider]);
 
     if (chartData.length === 0) return null;
 
@@ -73,12 +74,12 @@ export const LatencyHistoryGraph: React.FC<LatencyHistoryGraphProps> = memo(({
                             strokeLinejoin="round"
                         />
                     </svg>
-                    <span>Latency History</span>
+                    <span>Latency Overview</span>
                 </div>
             </div>
 
             <div className="history-graph-body">
-                <ResponsiveContainer width="100%" height={160}>
+                <ResponsiveContainer width="100%" height={180}>
                     <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
                         <defs>
                             <linearGradient id="latencyGradient" x1="0" y1="0" x2="0" y2="1">
@@ -93,13 +94,13 @@ export const LatencyHistoryGraph: React.FC<LatencyHistoryGraphProps> = memo(({
                         />
                         <XAxis
                             dataKey="name"
-                            tick={{ fontSize: 10, fill: '#666' }}
+                            tick={{ fontSize: 9, fill: '#666' }}
                             axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
                             tickLine={false}
                             interval={0}
-                            angle={-30}
+                            angle={-35}
                             textAnchor="end"
-                            height={40}
+                            height={50}
                         />
                         <YAxis
                             tick={{ fontSize: 10, fill: '#666' }}

@@ -1,20 +1,27 @@
 // electron/main.ts
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, Notification } from 'electron';
 import { join } from 'path';
-import { scanAllDNS, type ScanProgress } from './latencyScanner';
+import { scanAllDNS, loadScanResults, type BenchmarkProgress, type DNSBenchmarkResult } from './latencyScanner';
 import { applyDNS, restoreDNS, getSystemDNS } from './dnsManager';
+
+let appIconPath: string;
 
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
+    appIconPath = app.isPackaged
+        ? join(process.resourcesPath, 'icon.ico')
+        : join(__dirname, '../build/icon.ico');
+
     mainWindow = new BrowserWindow({
-        width: 1000,
-        height: 720,
-        minWidth: 800,
-        minHeight: 600,
+        width: 1100,
+        height: 780,
+        minWidth: 900,
+        minHeight: 650,
         frame: false,
         titleBarStyle: 'hidden',
         backgroundColor: '#000000',
+        icon: appIconPath,
         show: false,
         webPreferences: {
             preload: join(__dirname, 'preload.js'),
@@ -42,14 +49,17 @@ function createWindow(): void {
 
 // ----- IPC Handlers -----
 
-ipcMain.handle('scan-dns', async (event, testsPerServer: number) => {
-    const results: ScanProgress[] = [];
-    const progressCallback = (progress: ScanProgress) => {
-        results.push(progress);
+ipcMain.handle('scan-dns', async (_event, testsPerMethod: number) => {
+    const results: DNSBenchmarkResult[] = [];
+    const progressCallback = (progress: BenchmarkProgress) => {
         mainWindow?.webContents.send('scan-progress', progress);
     };
-    await scanAllDNS(testsPerServer, progressCallback);
-    return results;
+    const finalResults = await scanAllDNS(testsPerMethod, progressCallback);
+    return finalResults;
+});
+
+ipcMain.handle('load-scan-results', async () => {
+    return loadScanResults();
 });
 
 ipcMain.handle('apply-dns', async (_event, primaryIP: string, secondaryIP: string) => {
@@ -79,6 +89,25 @@ ipcMain.handle('window-maximize', () => {
 
 ipcMain.handle('window-close', () => {
     mainWindow?.close();
+});
+
+// Notifications
+ipcMain.handle('show-notification', (_event, title: string, body: string) => {
+    if (Notification.isSupported()) {
+        const notification = new Notification({
+            title,
+            body,
+            icon: appIconPath,
+            silent: false,
+        });
+        notification.on('click', () => {
+            if (mainWindow) {
+                if (mainWindow.isMinimized()) mainWindow.restore();
+                mainWindow.focus();
+            }
+        });
+        notification.show();
+    }
 });
 
 // ----- App Lifecycle -----

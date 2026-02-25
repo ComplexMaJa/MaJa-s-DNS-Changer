@@ -1,19 +1,27 @@
 // src/components/SettingsPage.tsx
 import React from 'react';
 import type { AppSettings } from '../hooks/useSettings';
+import { CustomDropdown } from './CustomDropdown';
 
 const DNS_PROVIDERS_LIST = [
-    { value: 'auto', label: 'Auto (Best Latency)' },
-    { value: 'Cloudflare', label: 'Cloudflare' },
-    { value: 'Google DNS', label: 'Google DNS' },
-    { value: 'Quad9', label: 'Quad9' },
-    { value: 'OpenDNS', label: 'OpenDNS' },
-    { value: 'AdGuard', label: 'AdGuard' },
-    { value: 'NextDNS', label: 'NextDNS' },
-    { value: 'Control D', label: 'Control D' },
-    { value: 'Mullvad', label: 'Mullvad' },
-    { value: 'CleanBrowsing', label: 'CleanBrowsing' },
-    { value: 'Alternate DNS', label: 'Alternate DNS' },
+    { value: 'auto', label: 'Auto (Best Score)', icon: '⚡' },
+    { value: 'Cloudflare', label: 'Cloudflare', icon: '🟠' },
+    { value: 'Google DNS', label: 'Google DNS', icon: '🔵' },
+    { value: 'Quad9', label: 'Quad9', icon: '🛡️' },
+    { value: 'OpenDNS', label: 'OpenDNS', icon: '🟡' },
+    { value: 'AdGuard', label: 'AdGuard', icon: '🟢' },
+    { value: 'NextDNS', label: 'NextDNS', icon: '🔷' },
+    { value: 'ControlD', label: 'ControlD', icon: '🎮' },
+    { value: 'Mullvad', label: 'Mullvad', icon: '🔒' },
+    { value: 'CleanBrowsing', label: 'CleanBrowsing', icon: '🧹' },
+    { value: 'Alternate DNS', label: 'Alternate DNS', icon: '🔀' },
+    { value: 'Comodo Secure', label: 'Comodo Secure', icon: '🏰' },
+    { value: 'DNS.SB', label: 'DNS.SB', icon: '📡' },
+    { value: 'FreeDNS', label: 'FreeDNS', icon: '🆓' },
+    { value: 'UncensoredDNS', label: 'UncensoredDNS', icon: '🌍' },
+    { value: 'Yandex DNS', label: 'Yandex DNS', icon: '🔴' },
+    { value: 'SafeDNS', label: 'SafeDNS', icon: '🛡️' },
+    { value: 'OpenNIC', label: 'OpenNIC', icon: '🌐' },
 ];
 
 interface SettingsPageProps {
@@ -48,20 +56,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onUpdate }
                         <span>Preferred DNS Provider</span>
                         <span>Override auto-detection and always use this provider</span>
                     </div>
-                    <div className="select-wrapper">
-                        <select
-                            className="select-input"
-                            value={settings.preferredProvider}
-                            onChange={(e) => onUpdate({ preferredProvider: e.target.value })}
-                            id="select-preferred-provider"
-                        >
-                            {DNS_PROVIDERS_LIST.map((p) => (
-                                <option key={p.value} value={p.value}>
-                                    {p.label}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    <CustomDropdown
+                        options={DNS_PROVIDERS_LIST}
+                        value={settings.preferredProvider}
+                        onChange={(val) => onUpdate({ preferredProvider: val })}
+                        id="select-preferred-provider"
+                    />
                 </div>
             </div>
 
@@ -92,16 +92,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onUpdate }
                         ))}
                     </div>
                 </div>
+
+
             </div>
 
             {/* About */}
             <div className="settings-section">
                 <div className="settings-section-title">About</div>
-                <div className="setting-item">
+                <div className="setting-item about-item">
                     <div className="setting-label">
                         <span>MaJa's DNS Changer</span>
-                        <span>Version 1.0.0 · Smart DNS Optimization Tool</span>
+                        <span>Version 1.0.0 · Advanced DNS Benchmarking &amp; Optimization</span>
                     </div>
+                    <img
+                        src="https://img1.picmix.com/output/stamp/normal/9/3/7/9/2279739_8058d.gif"
+                        alt="MaJa"
+                        className="about-gif"
+                    />
                 </div>
             </div>
         </div>

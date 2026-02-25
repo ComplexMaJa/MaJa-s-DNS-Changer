@@ -5,6 +5,7 @@ import { builtinModules } from 'module';
 
 export default defineConfig({
     plugins: [react()],
+    publicDir: 'build',
     resolve: {
         alias: {
             '@': resolve(__dirname, 'src'),

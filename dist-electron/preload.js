@@ -3,7 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // electron/preload.ts
 const electron_1 = require("electron");
 electron_1.contextBridge.exposeInMainWorld('electronAPI', {
-    scanDNS: (testsPerServer) => electron_1.ipcRenderer.invoke('scan-dns', testsPerServer),
+    scanDNS: (testsPerMethod) => electron_1.ipcRenderer.invoke('scan-dns', testsPerMethod),
+    loadScanResults: () => electron_1.ipcRenderer.invoke('load-scan-results'),
     applyDNS: (primaryIP, secondaryIP) => electron_1.ipcRenderer.invoke('apply-dns', primaryIP, secondaryIP),
     restoreDNS: () => electron_1.ipcRenderer.invoke('restore-dns'),
     getSystemDNS: () => electron_1.ipcRenderer.invoke('get-system-dns'),
@@ -14,6 +15,7 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
             electron_1.ipcRenderer.removeListener('scan-progress', handler);
         };
     },
+    showNotification: (title, body) => electron_1.ipcRenderer.invoke('show-notification', title, body),
     windowMinimize: () => electron_1.ipcRenderer.invoke('window-minimize'),
     windowMaximize: () => electron_1.ipcRenderer.invoke('window-maximize'),
     windowClose: () => electron_1.ipcRenderer.invoke('window-close'),

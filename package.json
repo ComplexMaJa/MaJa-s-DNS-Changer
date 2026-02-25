@@ -42,9 +42,23 @@
     "build": {
         "appId": "com.maja.dnschanger",
         "productName": "MaJa's DNS Changer",
+        "compression": "maximum",
+        "asar": true,
+        "electronLanguages": [
+            "en"
+        ],
+        
         "files": [
             "dist/**/*",
-            "dist-electron/**/*"
+            "dist-electron/**/*",
+            "assets/**/*",
+            "build/icon.ico",
+            "!**/*.map",
+            "!src/**",
+            "!electron/**/*.ts",
+            "!node_modules/.cache/**",
+            "!node_modules/**/test/**",
+            "!node_modules/**/*.md"
         ],
         "extraResources": [
             {

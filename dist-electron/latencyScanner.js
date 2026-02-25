@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DNS_PROVIDERS = void 0;
+exports.cancelScan = cancelScan;
 exports.scanAllDNS = scanAllDNS;
 exports.saveScanResults = saveScanResults;
 exports.loadScanResults = loadScanResults;
@@ -262,7 +263,12 @@ async function benchmarkProvider(provider, testsPerMethod, onProgress) {
     };
 }
 // ===================== Parallel Scanning Engine =====================
+let scanAborted = false;
+function cancelScan() {
+    scanAborted = true;
+}
 async function scanAllDNS(testsPerMethod, onProgress) {
+    scanAborted = false;
     const totalProviders = exports.DNS_PROVIDERS.length;
     const results = [];
     let completedProviders = 0;
@@ -286,6 +292,8 @@ async function scanAllDNS(testsPerMethod, onProgress) {
     const queue = [...exports.DNS_PROVIDERS];
     const running = [];
     const processProvider = async (provider) => {
+        if (scanAborted)
+            return;
         // Emit testing status
         onProgress({
             providerName: provider.name,
@@ -371,7 +379,7 @@ async function scanAllDNS(testsPerMethod, onProgress) {
     // Concurrency-limited parallel execution
     let queueIndex = 0;
     const startNext = () => {
-        if (queueIndex >= queue.length)
+        if (queueIndex >= queue.length || scanAborted)
             return null;
         const provider = queue[queueIndex++];
         const promise = processProvider(provider).then(() => {
@@ -389,6 +397,17 @@ async function scanAllDNS(testsPerMethod, onProgress) {
     }
     // Wait for all to complete
     await Promise.all(running);
+    if (scanAborted) {
+        // Return whatever partial results we have
+        if (results.length > 0) {
+            calculateLatencyScores(results);
+            for (const r of results) {
+                r.performanceScore = calculatePerformanceScore(r.stabilityScore, r.latencyScore);
+            }
+            results.sort((a, b) => b.performanceScore - a.performanceScore);
+        }
+        return results;
+    }
     // Calculate latency scores (relative to best)
     calculateLatencyScores(results);
     // Calculate performance scores

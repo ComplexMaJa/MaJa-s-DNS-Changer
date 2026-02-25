@@ -320,10 +320,17 @@ async function benchmarkProvider(
 
 // ===================== Parallel Scanning Engine =====================
 
+let scanAborted = false;
+
+export function cancelScan(): void {
+    scanAborted = true;
+}
+
 export async function scanAllDNS(
     testsPerMethod: number,
     onProgress: (progress: BenchmarkProgress) => void
 ): Promise<DNSBenchmarkResult[]> {
+    scanAborted = false;
     const totalProviders = DNS_PROVIDERS.length;
     const results: DNSBenchmarkResult[] = [];
     let completedProviders = 0;
@@ -350,6 +357,7 @@ export async function scanAllDNS(
     const running: Promise<void>[] = [];
 
     const processProvider = async (provider: DNSProvider): Promise<void> => {
+        if (scanAborted) return;
         // Emit testing status
         onProgress({
             providerName: provider.name,
@@ -445,7 +453,7 @@ export async function scanAllDNS(
     let queueIndex = 0;
 
     const startNext = (): Promise<void> | null => {
-        if (queueIndex >= queue.length) return null;
+        if (queueIndex >= queue.length || scanAborted) return null;
         const provider = queue[queueIndex++];
         const promise = processProvider(provider).then(() => {
             const next = startNext();
@@ -462,6 +470,18 @@ export async function scanAllDNS(
 
     // Wait for all to complete
     await Promise.all(running);
+
+    if (scanAborted) {
+        // Return whatever partial results we have
+        if (results.length > 0) {
+            calculateLatencyScores(results);
+            for (const r of results) {
+                r.performanceScore = calculatePerformanceScore(r.stabilityScore, r.latencyScore);
+            }
+            results.sort((a, b) => b.performanceScore - a.performanceScore);
+        }
+        return results;
+    }
 
     // Calculate latency scores (relative to best)
     calculateLatencyScores(results);

@@ -14,6 +14,7 @@ import { useDNSScanner } from './hooks/useDNSScanner';
 import { useSystemDNS } from './hooks/useSystemDNS';
 import { useSettings } from './hooks/useSettings';
 import { useToast } from './hooks/useToast';
+import notificationSound from '../assets/notification.mp3';
 
 type TabView = 'dashboard' | 'settings';
 
@@ -38,33 +39,14 @@ const App: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Play a completion chime using Web Audio API
+    // Play the notification sound from assets
     const playCompletionSound = useCallback(() => {
         try {
-            const ctx = new AudioContext();
-            const now = ctx.currentTime;
-
-            // Create a pleasant two-tone chime
-            const playTone = (freq: number, start: number, dur: number) => {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.value = freq;
-                gain.gain.setValueAtTime(0, now + start);
-                gain.gain.linearRampToValueAtTime(0.15, now + start + 0.05);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(now + start);
-                osc.stop(now + start + dur);
-            };
-
-            playTone(880, 0, 0.3);     // A5
-            playTone(1174.66, 0.15, 0.4); // D6
-            playTone(1318.51, 0.3, 0.5);  // E6
-
-            // Cleanup context after sound finishes
-            setTimeout(() => ctx.close(), 1500);
+            const audio = new Audio(notificationSound);
+            audio.volume = 0.5;
+            audio.play().catch(() => {
+                // Audio playback blocked or not available; silently ignore
+            });
         } catch {
             // Audio not available; silently ignore
         }

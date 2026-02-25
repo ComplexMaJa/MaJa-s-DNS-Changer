@@ -18,6 +18,7 @@ export default defineConfig({
         rollupOptions: {
             external: [...builtinModules, 'electron'],
         },
+        sourcemap: false,
     },
     server: {
         port: 5173,

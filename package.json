@@ -47,7 +47,7 @@
         "electronLanguages": [
             "en"
         ],
-        
+
         "files": [
             "dist/**/*",
             "dist-electron/**/*",

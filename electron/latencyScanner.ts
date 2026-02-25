@@ -352,12 +352,10 @@ export async function scanAllDNS(
         });
     }
 
-    // Process providers with concurrency limit
-    const queue = [...DNS_PROVIDERS];
-    const running: Promise<void>[] = [];
-
+    // Process a single provider: run all tests, collect results, report progress
     const processProvider = async (provider: DNSProvider): Promise<void> => {
         if (scanAborted) return;
+
         // Emit testing status
         onProgress({
             providerName: provider.name,
@@ -449,27 +447,26 @@ export async function scanAllDNS(
         }
     };
 
-    // Concurrency-limited parallel execution
-    let queueIndex = 0;
+    // Concurrency-limited parallel execution using Promise.race
+    // This guarantees ALL providers complete before proceeding.
+    const executing: Set<Promise<void>> = new Set();
 
-    const startNext = (): Promise<void> | null => {
-        if (queueIndex >= queue.length || scanAborted) return null;
-        const provider = queue[queueIndex++];
-        const promise = processProvider(provider).then(() => {
-            const next = startNext();
-            if (next) running.push(next);
+    for (const provider of DNS_PROVIDERS) {
+        if (scanAborted) break;
+
+        const p = processProvider(provider).then(() => {
+            executing.delete(p);
         });
-        return promise;
-    };
+        executing.add(p);
 
-    // Start initial batch
-    for (let i = 0; i < MAX_CONCURRENCY && i < queue.length; i++) {
-        const promise = startNext();
-        if (promise) running.push(promise);
+        // When we hit the concurrency limit, wait for any one to finish
+        if (executing.size >= MAX_CONCURRENCY) {
+            await Promise.race(executing);
+        }
     }
 
-    // Wait for all to complete
-    await Promise.all(running);
+    // Wait for ALL remaining in-flight providers to complete
+    await Promise.all(executing);
 
     if (scanAborted) {
         // Return whatever partial results we have

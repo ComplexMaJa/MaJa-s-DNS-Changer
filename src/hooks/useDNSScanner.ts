@@ -93,7 +93,13 @@ export function useDNSScanner() {
         let best: DNSBenchmarkResult | null = null;
 
         try {
+            // This awaits the IPC call which only resolves after ALL providers complete
             const results = await window.electronAPI.scanDNS(testsPerMethod);
+
+            // Verify we have results for all providers before marking complete
+            if (!results || results.length === 0) {
+                throw new Error('No results returned from scan');
+            }
 
             setScanResults(results);
 
@@ -121,11 +127,13 @@ export function useDNSScanner() {
                 );
                 setBestDNS(best);
             }
+
+            // Only set progress to 100 AFTER all results are processed
+            setProgress(100);
         } catch (err) {
             console.error('Scan failed:', err);
         } finally {
             setIsScanning(false);
-            setProgress(100);
         }
 
         return best;

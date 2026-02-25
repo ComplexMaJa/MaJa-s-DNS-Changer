@@ -162,7 +162,7 @@ The installer includes a custom sidebar image, branded icons, and a multi-step i
 
 ## License
 
-This project is licensed under my [licence(LICENSE).
+This project is licensed under my [licence](LICENSE).
 
 ---
 
